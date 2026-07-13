@@ -1,0 +1,7 @@
+node_modules/
+.env
+src/uploads/profiles/*
+src/uploads/faces/*
+!src/uploads/profiles/.gitkeep
+!src/uploads/faces/.gitkeep
+*.log

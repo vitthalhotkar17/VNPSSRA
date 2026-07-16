@@ -91,7 +91,7 @@ export default function StudentRegistration() {
             <GraduationCap size={24} color="#fff" />
           </div>
           <div>
-            <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, fontWeight: 800, color: "#fff" }}>SAMS</p>
+            <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, fontWeight: 800, color: "#fff" }}>Vision Tracker</p>
             <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.14em" }}>Smart Attendance System</p>
           </div>
         </div>
@@ -127,7 +127,7 @@ export default function StudentRegistration() {
           position: "relative", fontSize: 11.5, color: "rgba(255,255,255,0.25)", marginTop: 48,
           opacity: introDone ? 1 : 0, transition: "opacity .6s ease .25s"
         }}>
-          © {new Date().getFullYear()} SAMS · Student Attendance Management System v3.0
+          © {new Date().getFullYear()} Vesion tracker · Smart Attendance Management System v3.0
         </p>
       </div>
 
@@ -137,7 +137,7 @@ export default function StudentRegistration() {
             <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,#6366f1,#7c3aed)", display: "grid", placeItems: "center" }}>
               <GraduationCap size={20} color="#fff" />
             </div>
-            <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 18, fontWeight: 800, color: "var(--text)" }}>SAMS</p>
+            <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 18, fontWeight: 800, color: "var(--text)" }}>Vesion tracker</p>
           </div>
 
           <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 26, fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>
@@ -180,7 +180,7 @@ export default function StudentRegistration() {
               <div className="label">Email Address</div>
               <div style={{ position: "relative" }}>
                 <Mail size={15} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-                <input required type="email" className="input input-icon-left" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="student@sams.edu" />
+                <input required type="email" className="input input-icon-left" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="student@vesiontracker.edu" />
               </div>
             </div>
 

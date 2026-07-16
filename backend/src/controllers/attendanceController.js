@@ -3,7 +3,7 @@ const Session = require("../models/Session");
 const User = require("../models/User");
 const { verifyFaceMatch } = require("../utils/faceMatcher");
 const { normalizeAcademicYear } = require("../utils/academicYear");
-const { buildFacultyStudentFilter, isFacultyAllowedForDepartment } = require("../utils/departmentAccess");
+const { buildFacultyStudentFilter, isFacultyAllowedForDepartment, isDepartmentMatch } = require("../utils/departmentAccess");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -23,6 +23,46 @@ const todayString = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`;
+};
+
+/**
+ * Normalize any incoming date value (bare "2026-07-14", full ISO timestamp
+ * "2026-07-14T00:00:00", or a Date object) down to a plain "YYYY-MM-DD"
+ * string, since Attendance.date is stored as a plain date-only string.
+ *
+ * This matters because filtering with $gte/$lte on a STRING field compares
+ * lexicographically: "2026-07-14" is considered LESS than
+ * "2026-07-14T00:00:00" as a string (a shorter prefix always sorts first),
+ * so a bare stored date was silently excluded whenever the frontend sent a
+ * full timestamp. Normalizing both sides to the same "YYYY-MM-DD" shape
+ * fixes that mismatch regardless of which format the caller sends.
+ */
+const toDateOnlyString = (value) => {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(
+        parsed.getDate()
+      ).padStart(2, "0")}`;
+    }
+    return null;
+  }
+  if (value instanceof Date) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(
+      value.getDate()
+    ).padStart(2, "0")}`;
+  }
+  return null;
+};
+
+/** Turn a department value (string, ObjectId, or {_id, code, name} object) into display text */
+const formatDepartment = (dept) => {
+  if (!dept) return null;
+  if (typeof dept === "string") return dept;
+  return dept.code || dept.name || dept.department || null;
 };
 
 /** Haversine distance in metres between two lat/lng points */
@@ -65,7 +105,7 @@ const markAttendance = async (req, res) => {
 
     // ── 2. Fetch student ─────────────────────────────────────────────────────
     const student = await User.findById(req.user._id).select(
-      "name email role isActive academicYear year"
+      "name email role isActive academicYear year department"
     );
     if (!student || student.role !== "student") {
       return error(res, "Only students can mark attendance.", 403);
@@ -96,10 +136,12 @@ const markAttendance = async (req, res) => {
 
     if (session.department) {
       const studentDepartment = student.department || null;
-      if (!studentDepartment || String(studentDepartment) !== String(session.department)) {
+      if (!studentDepartment || !isDepartmentMatch(studentDepartment, session.department)) {
+        const sessionDeptLabel = formatDepartment(session.department) || "another department";
+        const studentDeptLabel = formatDepartment(studentDepartment) || "a different department";
         return error(
           res,
-          `This session is for ${session.department}. You are registered in ${studentDepartment || "a different department"}.`,
+          `This session is for ${sessionDeptLabel}. You are registered in ${studentDeptLabel}.`,
           403
         );
       }
@@ -361,10 +403,12 @@ const getHistory = async (req, res) => {
 
     const filter = { studentId: req.user._id };
     if (subject) filter.subject = subject;
-    if (from || to) {
+    const fromDate = toDateOnlyString(from);
+    const toDate = toDateOnlyString(to);
+    if (fromDate || toDate) {
       filter.date = {};
-      if (from) filter.date.$gte = from;
-      if (to) filter.date.$lte = to;
+      if (fromDate) filter.date.$gte = fromDate;
+      if (toDate) filter.date.$lte = toDate;
     }
 
     const [records, total] = await Promise.all([
@@ -429,10 +473,12 @@ const getStudentAttendance = async (req, res) => {
 
     const filter = { studentId: id };
     if (subject) filter.subject = subject;
-    if (from || to) {
+    const fromDate = toDateOnlyString(from);
+    const toDate = toDateOnlyString(to);
+    if (fromDate || toDate) {
       filter.date = {};
-      if (from) filter.date.$gte = from;
-      if (to) filter.date.$lte = to;
+      if (fromDate) filter.date.$gte = fromDate;
+      if (toDate) filter.date.$lte = toDate;
     }
 
     const [records, total] = await Promise.all([
@@ -531,15 +577,18 @@ const getSessionAttendance = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const getReport = async (req, res) => {
   try {
-    const { from, to, subject, studentId, format = "json" } = req.query;
+    const { subject, studentId, format = "json" } = req.query;
+    const { from, to } = req.query;
 
     const filter = {};
     if (subject) filter.subject = subject;
     if (studentId) filter.studentId = studentId;
-    if (from || to) {
+    const fromDate = toDateOnlyString(from);
+    const toDate = toDateOnlyString(to);
+    if (fromDate || toDate) {
       filter.date = {};
-      if (from) filter.date.$gte = from;
-      if (to) filter.date.$lte = to;
+      if (fromDate) filter.date.$gte = fromDate;
+      if (toDate) filter.date.$lte = toDate;
     }
 
     if (req.user?.role === "faculty") {

@@ -36,7 +36,7 @@ export default function FacultyLayout() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
-      <Sidebar items={items} brand="SAMS Faculty" />
+      <Sidebar items={items} brand="Vision Tracker Faculty" />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <Navbar title={titles[pathname] || "Faculty"} />
         <main style={{ flex: 1, padding: 28 }}>

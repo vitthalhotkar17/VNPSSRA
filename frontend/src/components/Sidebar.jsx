@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
-export default function Sidebar({ items, brand = "SAMS", role = "" }) {
+export default function Sidebar({ items, brand = "Vision Tracker", role = "" }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
   return (

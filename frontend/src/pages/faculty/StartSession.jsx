@@ -24,6 +24,23 @@ const resolveDepartmentId = (department, departments = []) => {
   return matched ? String(matched._id) : normalized;
 };
 
+// Subjects can come back either as plain strings or as populated
+// objects like { _id, id, code, name }. These helpers normalize
+// either shape into a stable id (for comparisons/keys) and a
+// human-readable label (for display) so we never render a raw object.
+const resolveSubjectId = (subject) => {
+  if (!subject) return "";
+  if (typeof subject === "string") return subject;
+  return String(subject._id || subject.id || "");
+};
+
+const resolveSubjectLabel = (subject) => {
+  if (!subject) return "";
+  if (typeof subject === "string") return subject;
+  if (subject.code && subject.name) return `${subject.code} — ${subject.name}`;
+  return subject.name || subject.code || String(subject._id || subject.id || "");
+};
+
 export default function StartSession() {
   const { user } = useAuth();
   const [subjects, setSubjects] = useState([]);
@@ -50,7 +67,7 @@ export default function StartSession() {
 
         if (active && (active.facultyId === (user._id || user.id) || active.facultyId?._id === (user._id || user.id))) {
           setSession(active);
-          setSelected(active.subject);
+          setSelected(resolveSubjectId(active.subject));
           setSelectedYear(active.academicYear);
           setSelectedDepartment(resolveDepartmentId(active.department || user.department, loadedDepartments));
         } else if (user?.department) {
@@ -122,18 +139,22 @@ export default function StartSession() {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {checking ? (
               <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>Loading subjects…</p>
-            ) : subjects.length > 0 ? subjects.map((s) => (
-              <div key={s} onClick={() => !session && setSelected(s)}
-                style={{
-                  background: selected === s ? "rgba(99,102,241,0.1)" : "var(--surface2)",
-                  border: selected === s ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--border)",
-                  borderRadius: 10, padding: "12px 16px", cursor: session ? "default" : "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "space-between", transition: "all 0.15s"
-                }}>
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: selected === s ? "#818cf8" : "var(--text)" }}>{s}</span>
-                {selected === s && <CheckCircle size={16} color="#818cf8" />}
-              </div>
-            )) : (
+            ) : subjects.length > 0 ? subjects.map((s) => {
+              const subjectId = resolveSubjectId(s);
+              const subjectLabel = resolveSubjectLabel(s);
+              return (
+                <div key={subjectId} onClick={() => !session && setSelected(subjectId)}
+                  style={{
+                    background: selected === subjectId ? "rgba(99,102,241,0.1)" : "var(--surface2)",
+                    border: selected === subjectId ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--border)",
+                    borderRadius: 10, padding: "12px 16px", cursor: session ? "default" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "space-between", transition: "all 0.15s"
+                  }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 600, color: selected === subjectId ? "#818cf8" : "var(--text)" }}>{subjectLabel}</span>
+                  {selected === subjectId && <CheckCircle size={16} color="#818cf8" />}
+                </div>
+              );
+            }) : (
               <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>No subjects assigned. Contact admin.</p>
             )}
           </div>
@@ -230,8 +251,8 @@ export default function StartSession() {
               </div>
               {[
                 { label: "Academic Year", val: session.academicYear },
-                { label: "Subject",       val: session.subject },
-                { label: "Department",    val: departments.find((d) => String(d._id) === String(session.department))?.code || session.department || "—" },
+                { label: "Subject",       val: resolveSubjectLabel(session.subject) },
+                { label: "Department",    val: departments.find((d) => String(d._id) === String(session.department?._id || session.department))?.code || (typeof session.department === "object" ? (session.department?.code || session.department?.name) : session.department) || "—" },
                 { label: "Session ID",    val: session._id },
                 { label: "Expires",       val: new Date(session.expiresAt).toLocaleTimeString() },
               ].map(({ label, val }) => (

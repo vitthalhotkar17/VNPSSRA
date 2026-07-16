@@ -1,12 +1,74 @@
 const Session = require("../models/Session");
 const Assignment = require("../models/Assignment");
 const Setting = require("../models/Setting");
+const Department = require("../models/Department");
 const { success, error } = require("../utils/response");
 const { normalizeSettings, getGeofenceSettings } = require("../utils/settings");
 const { normalizeAcademicYear, isValidAcademicYear } = require("../utils/academicYear");
 const { buildDepartmentQuery, isDepartmentMatch } = require("../utils/departmentAccess");
 
 const SESSION_DURATION_MINUTES = 30;
+
+const resolveDepartmentValue = async (departmentValue) => {
+  if (!departmentValue) return null;
+
+  if (typeof departmentValue === "object") {
+    const departmentId = departmentValue._id || departmentValue.id;
+    if (departmentId) {
+      const resolved = await Department.findById(departmentId).select("code name").lean();
+      if (resolved) {
+        return {
+          _id: resolved._id,
+          id: resolved._id,
+          code: resolved.code,
+          name: resolved.name,
+        };
+      }
+    }
+
+    return {
+      _id: departmentValue._id || departmentValue.id || null,
+      id: departmentValue.id || departmentValue._id || null,
+      code: departmentValue.code || departmentValue.department || null,
+      name: departmentValue.name || departmentValue.title || departmentValue.label || null,
+    };
+  }
+
+  if (typeof departmentValue === "string") {
+    const trimmed = departmentValue.trim();
+    if (!trimmed) return null;
+
+    const departmentDoc = await Department.findOne({
+      $or: [{ _id: trimmed }, { code: trimmed }, { name: trimmed }],
+    }).select("code name").lean();
+
+    if (departmentDoc) {
+      return {
+        _id: departmentDoc._id,
+        id: departmentDoc._id,
+        code: departmentDoc.code,
+        name: departmentDoc.name,
+      };
+    }
+
+    return trimmed;
+  }
+
+  return departmentValue;
+};
+
+const filterSessionsByDepartment = async (sessions, departmentValue) => {
+  if (!departmentValue) return sessions;
+
+  const results = [];
+  for (const session of sessions) {
+    const matches = await isDepartmentMatch(session.department, departmentValue);
+    if (matches) {
+      results.push(session);
+    }
+  }
+  return results;
+};
 
 // ─── POST /api/sessions/start ─────────────────────────────────────────────────
 const startSession = async (req, res, next) => {
@@ -29,7 +91,7 @@ const startSession = async (req, res, next) => {
     }
 
     const requestedDepartment = department ?? faculty.department ?? null;
-    const sessionDepartment = requestedDepartment || null;
+    const sessionDepartment = (requestedDepartment && (await resolveDepartmentValue(requestedDepartment))) || null;
 
     // Deactivate any other running session by this faculty for this year and department
     const departmentQuery = sessionDepartment
@@ -124,9 +186,15 @@ const getSessions = async (req, res, next) => {
       filter.active = true;
     }
 
-    const sessions = await Session.find(filter)
+    let sessions = await Session.find(filter)
       .populate("facultyId", "name email department")
       .sort({ createdAt: -1 });
+
+    if (department) {
+      sessions = await filterSessionsByDepartment(sessions, department);
+    } else if (req.user.role === "student") {
+      sessions = await filterSessionsByDepartment(sessions, req.user.department);
+    }
 
     return success(res, { sessions }, "Sessions fetched");
   } catch (err) {
@@ -178,6 +246,8 @@ const getActiveSession = async (req, res, next) => {
       // Faculty/admin without academicYear will not further restrict by year
     }
 
+    let sessions = [];
+
     // Department scoping: if a department is specified, enforce authorization
     if (department) {
       if (req.user.role === "student") {
@@ -186,18 +256,21 @@ const getActiveSession = async (req, res, next) => {
           return error(res, "You are not authorized to view this department", 403);
         }
       }
-      Object.assign(filter, buildDepartmentQuery(department));
-    } else {
-      // Default: students should only see sessions for their department
-      if (req.user.role === "student") {
-        if (!req.user.department) return error(res, "Your department is not assigned", 403);
-        Object.assign(filter, buildDepartmentQuery(req.user.department));
-      }
+    } else if (req.user.role === "student") {
+      if (!req.user.department) return error(res, "Your department is not assigned", 403);
     }
 
-    const session = await Session.findOne(filter).populate("facultyId", "name department");
+    sessions = await Session.find(filter).populate("facultyId", "name department").lean();
 
-    return success(res, { session: session || null }, session ? "Active session found" : "No active session");
+    if (department) {
+      sessions = await filterSessionsByDepartment(sessions, department);
+    } else if (req.user.role === "student") {
+      sessions = await filterSessionsByDepartment(sessions, req.user.department);
+    }
+
+    const session = sessions[0] || null;
+
+    return success(res, { session }, session ? "Active session found" : "No active session");
   } catch (err) {
     next(err);
   }

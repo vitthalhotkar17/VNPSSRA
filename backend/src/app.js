@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
@@ -7,8 +7,8 @@ const cookieParser = require("cookie-parser");
 const path = require("path");
 
 const errorHandler = require("./middleware/errorHandler");
+const User = require("./models/User"); // needed for the temporary debug route below
 
-// ─── Route imports ────────────────────────────────────────────────────────────
 const authRoutes          = require("./routes/authRoutes");
 const adminRoutes         = require("./routes/adminRoutes");
 const attendanceRoutes    = require("./routes/attendanceRoutes");
@@ -26,13 +26,11 @@ const facultyRoutes       = require("./routes/facultyRoutes");
 
 const app = express();
 
-// ─── Security & Performance middleware ────────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 app.use(compression());
 
-// ─── CORS ─────────────────────────────────────────────────────────────────────
 const isDev = process.env.NODE_ENV !== "production";
 const allowedOrigins = [
   process.env.FRONTEND_URL,
@@ -55,25 +53,20 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-// ─── Body parsers ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
-// ─── Logger ──────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== "test") {
   app.use(morgan("dev"));
 }
 
-// ─── Static files ────────────────────────────────────────────────────────────
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// ─── Health check ─────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
-  res.json({ success: true, message: "SAMS API is running 🚀", timestamp: new Date() });
+  res.json({ success: true, message: "SAMS API is running", timestamp: new Date() });
 });
 
-// ─── API Routes ───────────────────────────────────────────────────────────────
 app.use("/api/auth",          authRoutes);
 app.use("/api/admin",         adminRoutes);
 app.use("/api/attendance",    attendanceRoutes);
@@ -86,15 +79,27 @@ app.use("/api/dashboard",     dashboardRoutes);
 app.use("/api/reports",       reportRoutes);
 app.use("/api/profile",       profileRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/departments",    departmentRoutes);
-app.use("/api/faculty",        facultyRoutes);
+app.use("/api/departments",   departmentRoutes);
+app.use("/api/faculty",       facultyRoutes);
 
-// ─── 404 handler ─────────────────────────────────────────────────────────────
+app.get("/api/debug-departments", async (req, res) => {
+  try {
+    const faculty = await User.find({ role: "faculty" }).select("name department").lean();
+    const students = await User.find({ role: "student" }).select("name department").lean();
+
+    res.json({
+      faculty: faculty.map(f => ({ name: f.name, department: f.department, type: typeof f.department })),
+      students: students.map(s => ({ name: s.name, department: s.department, type: typeof s.department })),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
 });
 
-// ─── Global error handler ─────────────────────────────────────────────────────
 app.use(errorHandler);
 
 module.exports = app;

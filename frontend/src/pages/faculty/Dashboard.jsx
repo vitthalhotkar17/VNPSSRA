@@ -39,12 +39,18 @@ export default function FacultyDashboard() {
           attendanceService.listAttendance(),
         ]);
 
+        if (!mounted) return;
+
         const facultySessions = sessions.filter((session) => {
           const sessionFacultyId = session.facultyId?._id || session.facultyId || session.facultyId?.id;
           return sessionFacultyId === facultyId || session.facultyName === user?.name;
         });
 
-        const activeSession = facultySessions.find((session) => session.active) || null;
+        // Only ever ONE active session at a time per faculty (the most recent one, just in case)
+        const activeSession =
+          facultySessions
+            .filter((session) => session.active)
+            .sort((a, b) => new Date(b.startedAt || b.createdAt || 0) - new Date(a.startedAt || a.createdAt || 0))[0] || null;
 
         setSubjects(assignedSubjects || []);
         setSessionCount(facultySessions.length);
@@ -159,15 +165,38 @@ export default function FacultyDashboard() {
           <Link to="/faculty/start-session" className="btn btn-primary btn-sm">+ Start Session</Link>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
-          {subjects.length > 0 ? subjects.map((subj) => (
-            <div key={subj} style={{ background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <div>
-                <p style={{ fontWeight: 600, fontSize: 14, color: "var(--text)" }}>{subj}</p>
-                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>Active · Click to start</p>
+          {subjects.length > 0 ? subjects.map((subj) => {
+            // A subject is only "Live" if it matches the faculty's currently active session
+            const isLive = sessionStatus.active && sessionStatus.subject === subj;
+
+            return (
+              <div
+                key={subj}
+                onClick={() => navigate("/faculty/start-session", { state: { subject: subj } })}
+                style={{
+                  background: "var(--surface2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  padding: "16px 18px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  cursor: "pointer",
+                }}
+              >
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: 14, color: "var(--text)" }}>{subj}</p>
+                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
+                    {isLive ? "Session in progress" : "Click to start"}
+                  </p>
+                </div>
+                <span className={`chip ${isLive ? "chip-green" : "chip-muted"}`}>
+                  {isLive ? "Live" : "Idle"}
+                </span>
               </div>
-              <span className="chip chip-green">Live</span>
-            </div>
-          )) : (
+            );
+          }) : (
             <div style={{ background: "var(--surface2)", border: "1px dashed var(--border2)", borderRadius: 12, padding: "24px 20px", color: "var(--muted)", fontSize: 13 }}>
               No subjects assigned yet. Contact the administrator.
             </div>

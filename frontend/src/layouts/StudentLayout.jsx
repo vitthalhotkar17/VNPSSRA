@@ -35,7 +35,7 @@ export default function StudentLayout() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
-      <Sidebar items={items} brand="SAMS Student" />
+      <Sidebar items={items} brand="Vision Tracker Student" />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <Navbar title={titles[pathname] || "Student"} />
         <main style={{ flex: 1, padding: 28 }}><Outlet key={`${pathname}-${refreshKey}`} /></main>

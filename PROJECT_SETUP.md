@@ -1,4 +1,4 @@
-# 🎓 SAMS (Student Attendance Management System) - COMPLETE SETUP
+# 🎓 Vesion tracker - COMPLETE SETUP
 
 ## ✅ WHAT'S BEEN FIXED
 

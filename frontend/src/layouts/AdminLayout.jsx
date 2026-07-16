@@ -57,7 +57,7 @@ export default function AdminLayout() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
-      <Sidebar items={items} brand="SAMS Admin" />
+      <Sidebar items={items} brand="Vision Tracker Admin" />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <Navbar title={titles[pathname] || "Admin"} />
         <main style={{ flex: 1, padding: 28, overflowY: "auto" }}>

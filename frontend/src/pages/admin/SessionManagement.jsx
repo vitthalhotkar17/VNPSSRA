@@ -16,6 +16,8 @@ export default function SessionManagement() {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [gpsCapturing, setGpsCapturing] = useState(false);
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -81,12 +83,23 @@ export default function SessionManagement() {
   };
 
   const captureGPS = async () => {
+    setGpsCapturing(true);
+    setGpsAccuracy(null);
     try {
-      const pos = await getCurrentLocation();
+      // This point anchors every session's distance check campus-wide,
+      // so it's held to a tighter accuracy floor than a single reading.
+      const pos = await getCurrentLocation({
+        sampleWindowMs: 8000,
+        minAccuracy: 50,
+        fallbackToIp: false,
+        onSample: (reading) => setGpsAccuracy(reading.accuracy),
+      });
       setS((x) => ({ ...x, campusLat: pos.lat, campusLng: pos.lng }));
-      toast.success("Campus location captured");
+      toast.success(`Campus location captured (accuracy ~${Math.round(pos.accuracy)}m)`);
     } catch (err) {
       toast.error(err.message || "Unable to capture GPS");
+    } finally {
+      setGpsCapturing(false);
     }
   };
 
@@ -158,10 +171,15 @@ export default function SessionManagement() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button type="button" onClick={captureGPS} className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
+            <button type="button" onClick={captureGPS} disabled={gpsCapturing} className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60">
               <MapPin size={16} className="mr-2" />
-              Capture current GPS
+              {gpsCapturing ? "Capturing…" : "Capture current GPS"}
             </button>
+            {gpsCapturing && (
+              <span className="text-xs text-slate-500">
+                {gpsAccuracy != null ? `Accuracy: ${Math.round(gpsAccuracy)}m — refining…` : "Searching for signal…"}
+              </span>
+            )}
             <button type="submit" className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
               Save settings
             </button>

@@ -51,6 +51,7 @@ export default function StartSession() {
   const [session, setSession]   = useState(null);
   const [loading, setLoading]   = useState(false);
   const [checking, setChecking] = useState(true);
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -87,16 +88,24 @@ export default function StartSession() {
     if (!selectedYear) { toast.error("Please select an academic year."); return; }
     if (!selectedDepartment) { toast.error("Please select a department."); return; }
     setLoading(true);
+    setGpsAccuracy(null);
     try {
       const existing = await attendanceService.getActiveSession(selectedYear, selectedDepartment);
       if (existing) {
         toast.error("A session is already active for this academic year in this department. Stop it first.");
         return;
       }
-      const pos = await getCurrentLocation({ timeout: 15000 });
+      // This becomes the anchor point every student's distance is measured
+      // against, so it needs to be tighter than the student-side threshold.
+      const pos = await getCurrentLocation({
+        sampleWindowMs: 8000,
+        minAccuracy: 50,
+        fallbackToIp: false,
+        onSample: (reading) => setGpsAccuracy(reading.accuracy),
+      });
       const s = await attendanceService.startSession({ subject: selected, academicYear: selectedYear, department: selectedDepartment, lat: pos.lat, lng: pos.lng });
       setSession(s);
-      toast.success("Session started — students can now mark attendance!");
+      toast.success(`Session started (location accuracy ~${Math.round(pos.accuracy)}m) — students can now mark attendance!`);
     } catch (err) { toast.error(err?.message || "Failed to start session"); }
     finally { setLoading(false); }
   };
@@ -232,9 +241,18 @@ export default function StartSession() {
             </div>
 
             {!session ? (
-              <button className="btn btn-primary w-full" style={{ justifyContent: "center", padding: "12px" }} disabled={loading || !selected || !selectedYear || !selectedDepartment} onClick={handleStart}>
-                {loading ? <><Loader2 size={15} className="animate-spin" /> Starting…</> : <><PlayCircle size={16} /> Start Session</>}
-              </button>
+              <>
+                <button className="btn btn-primary w-full" style={{ justifyContent: "center", padding: "12px" }} disabled={loading || !selected || !selectedYear || !selectedDepartment} onClick={handleStart}>
+                  {loading ? <><Loader2 size={15} className="animate-spin" /> Starting…</> : <><PlayCircle size={16} /> Start Session</>}
+                </button>
+                {loading && (
+                  <p style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
+                    {gpsAccuracy != null
+                      ? `Locking classroom location — accuracy: ${Math.round(gpsAccuracy)}m`
+                      : "Searching for GPS signal…"}
+                  </p>
+                )}
+              </>
             ) : (
               <button className="btn btn-danger w-full" style={{ justifyContent: "center", padding: "12px" }} disabled={loading} onClick={handleStop}>
                 {loading ? <><Loader2 size={15} className="animate-spin" /> Stopping…</> : <><StopCircle size={16} /> Stop Session</>}
@@ -267,4 +285,3 @@ export default function StartSession() {
       </div>
     </div>
   );
-}

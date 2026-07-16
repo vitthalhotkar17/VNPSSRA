@@ -73,6 +73,13 @@ const getIpFallbackLocation = async () => {
 //   }
 // };
 
+/**
+ * Samples GPS for up to `sampleWindowMs` and keeps the most accurate fix
+ * seen in that window (instead of trusting a single, often-noisy, first fix).
+ * Stops early if a fix at least as good as `goodEnoughAccuracy` arrives.
+ * Pass `onSample(reading)` to receive every intermediate fix — useful for
+ * showing a live "Accuracy: 42m… improving" indicator in the UI.
+ */
 export const getCurrentLocation = async (options = {}) => {
   if (!navigator.geolocation) {
     throw new Error("Geolocation is not supported by this browser.");
@@ -83,28 +90,56 @@ export const getCurrentLocation = async (options = {}) => {
     throw new Error("Location access requires a secure connection (HTTPS or localhost).");
   }
 
-  const { fallbackToIp, minAccuracy, ...geoOptions } = options;
+  const {
+    fallbackToIp,
+    minAccuracy,
+    sampleWindowMs = 8000,
+    goodEnoughAccuracy = 25,
+    onSample,
+    ...geoOptions
+  } = options;
 
-  let result;
+  let best = null;
+
   try {
-    result = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
+    await new Promise((resolve, reject) => {
+      let watchId = null;
+      const timer = setTimeout(() => {
+        if (watchId != null) navigator.geolocation.clearWatch(watchId);
+        best ? resolve() : reject(new Error("Location request timed out."));
+      }, sampleWindowMs);
+
+      watchId = navigator.geolocation.watchPosition(
         (position) => {
-          resolve({
+          const reading = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
             accuracy: position.coords.accuracy,
             source: "gps",
-          });
+          };
+          onSample?.(reading);
+          if (!best || reading.accuracy < best.accuracy) best = reading;
+
+          if (reading.accuracy <= goodEnoughAccuracy) {
+            clearTimeout(timer);
+            navigator.geolocation.clearWatch(watchId);
+            resolve();
+          }
         },
-        (error) => reject(new Error(getLocationErrorMessage(error))),
+        (error) => {
+          clearTimeout(timer);
+          navigator.geolocation.clearWatch(watchId);
+          reject(new Error(getLocationErrorMessage(error)));
+        },
         { ...DEFAULT_GEO_OPTIONS, ...geoOptions }
       );
     });
   } catch (error) {
-    if (fallbackToIp !== false) {
+    if (best) {
+      // Timed out, but we already captured at least one usable fix — keep it.
+    } else if (fallbackToIp !== false) {
       try {
-        result = await getIpFallbackLocation();
+        best = await getIpFallbackLocation();
       } catch {
         throw error;
       }
@@ -113,13 +148,13 @@ export const getCurrentLocation = async (options = {}) => {
     }
   }
 
-  if (minAccuracy != null && result.accuracy > minAccuracy) {
+  if (minAccuracy != null && best.accuracy > minAccuracy) {
     throw new Error(
-      `Location accuracy (${Math.round(result.accuracy)}m) is too low for verification. Please move to an open area and try again.`
+      `Location accuracy (${Math.round(best.accuracy)}m) is too low for verification. Please move to an open area and try again.`
     );
   }
 
-  return result;
+  return best;
 };
 
 export const watchLocation = (onSuccess, onError, options = {}) => {
@@ -147,3 +182,4 @@ export const clearLocationWatch = (watchId) => {
     navigator.geolocation.clearWatch(watchId);
   }
 };
+

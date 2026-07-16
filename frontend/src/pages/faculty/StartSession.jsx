@@ -285,3 +285,86 @@ export default function StartSession() {
       </div>
     </div>
   );
+          {session && (
+            <div
+              className="animate-fade-in"
+              style={{
+                background: "rgba(16,185,129,0.07)",
+                border: "1px solid rgba(16,185,129,0.25)",
+                borderRadius: 14,
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 14,
+                }}
+              >
+                <span className="dot-live" />
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#34d399",
+                  }}
+                >
+                  Session Active
+                </span>
+              </div>
+
+              {[
+                { label: "Academic Year", val: session.academicYear },
+                { label: "Subject", val: resolveSubjectLabel(session.subject) },
+                {
+                  label: "Department",
+                  val:
+                    departments.find(
+                      (d) =>
+                        String(d._id) ===
+                        String(session.department?._id || session.department)
+                    )?.code ||
+                    (typeof session.department === "object"
+                      ? session.department?.code || session.department?.name
+                      : session.department) ||
+                    "—",
+                },
+                { label: "Session ID", val: session._id },
+                {
+                  label: "Expires",
+                  val: new Date(session.expiresAt).toLocaleTimeString(),
+                },
+              ].map(({ label, val }) => (
+                <div
+                  key={label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 12.5,
+                    padding: "6px 0",
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  }}
+                >
+                  <span style={{ color: "var(--muted)" }}>{label}</span>
+                  <span
+                    style={{
+                      color: "var(--text)",
+                      fontWeight: 600,
+                      fontFamily:
+                        label === "Session ID" ? "monospace" : "inherit",
+                      fontSize: label === "Session ID" ? 11 : 12.5,
+                    }}
+                  >
+                    {val}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

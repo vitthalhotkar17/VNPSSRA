@@ -24,10 +24,6 @@ const resolveDepartmentId = (department, departments = []) => {
   return matched ? String(matched._id) : normalized;
 };
 
-// Subjects can come back either as plain strings or as populated
-// objects like { _id, id, code, name }. These helpers normalize
-// either shape into a stable id (for comparisons/keys) and a
-// human-readable label (for display) so we never render a raw object.
 const resolveSubjectId = (subject) => {
   if (!subject) return "";
   if (typeof subject === "string") return subject;
@@ -48,8 +44,8 @@ export default function StartSession() {
   const [selected, setSelected] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [session, setSession]   = useState(null);
-  const [loading, setLoading]   = useState(false);
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
 
@@ -84,57 +80,91 @@ export default function StartSession() {
   }, [user]);
 
   const handleStart = async () => {
-    if (!selected) { toast.error("Please select a subject."); return; }
-    if (!selectedYear) { toast.error("Please select an academic year."); return; }
-    if (!selectedDepartment) { toast.error("Please select a department."); return; }
+    if (!selected) {
+      toast.error("Please select a subject.");
+      return;
+    }
+    if (!selectedYear) {
+      toast.error("Please select an academic year.");
+      return;
+    }
+    if (!selectedDepartment) {
+      toast.error("Please select a department.");
+      return;
+    }
+
     setLoading(true);
     setGpsAccuracy(null);
+
     try {
       const existing = await attendanceService.getActiveSession(selectedYear, selectedDepartment);
       if (existing) {
-        toast.error("A session is already active for this academic year in this department. Stop it first.");
+        toast.error("A session is already active for this academic year in this department. Please stop it first.");
         return;
       }
-      // This becomes the anchor point every student's distance is measured
-      // against, so it needs to be tighter than the student-side threshold.
+
       const pos = await getCurrentLocation({
         sampleWindowMs: 8000,
         minAccuracy: 50,
         fallbackToIp: false,
         onSample: (reading) => setGpsAccuracy(reading.accuracy),
       });
-      const s = await attendanceService.startSession({ subject: selected, academicYear: selectedYear, department: selectedDepartment, lat: pos.lat, lng: pos.lng });
+
+      const s = await attendanceService.startSession({
+        subject: selected,
+        academicYear: selectedYear,
+        department: selectedDepartment,
+        lat: pos.lat,
+        lng: pos.lng,
+      });
+
       setSession(s);
-      toast.success(`Session started (location accuracy ~${Math.round(pos.accuracy)}m) — students can now mark attendance!`);
-    } catch (err) { toast.error(err?.message || "Failed to start session"); }
-    finally { setLoading(false); }
+      toast.success(`Session started successfully! Location accuracy: ~${Math.round(pos.accuracy)}m — Students can now mark attendance.`);
+    } catch (err) {
+      toast.error(err?.message || "Failed to start session. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStop = async () => {
-    if (!session?._id) return;
+    if (!session?._id) {
+      toast.error("No active session to stop.");
+      return;
+    }
+
     setLoading(true);
     try {
       await attendanceService.stopSession(session._id);
-      toast.success("Session stopped.");
+      toast.success("Session stopped successfully.");
       setSession(null);
       setSelected("");
-    } catch (err) { toast.error(err?.message || "Failed to stop session"); }
-    finally { setLoading(false); }
+    } catch (err) {
+      toast.error(err?.message || "Failed to stop session. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="animate-fade-up" style={{ maxWidth: 700 }}>
-      {/* Hero */}
-      <div className="hero-gradient" style={{ padding: "28px 32px", marginBottom: 24 }}>
+    <div className="animate-fade-up" style={{ maxWidth: 700, margin: "0 auto", padding: "20px" }}>
+      {/* Hero Section */}
+      <div className="hero-gradient" style={{ padding: "28px 32px", marginBottom: 24, borderRadius: 12 }}>
         <div style={{ position: "relative", zIndex: 1 }}>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8 }}>Faculty · Session Control</p>
-          <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>Start Attendance Session</h1>
-          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>Your GPS location is captured when you start. Students must be within 500 m.</p>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8 }}>
+            Faculty · Session Control
+          </p>
+          <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>
+            Start Attendance Session
+          </h1>
+          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>
+            Your GPS location is captured when you start. Students must be within 500 meters.
+          </p>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {/* Subject selector */}
+        {/* Left Column - Subject Selector */}
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
             <div style={{ width: 38, height: 38, borderRadius: 9, background: "rgba(99,102,241,0.12)", display: "grid", placeItems: "center" }}>
@@ -142,34 +172,52 @@ export default function StartSession() {
             </div>
             <div>
               <p style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Select Subject</p>
-              <p style={{ fontSize: 12, color: "var(--muted)" }}>Your assigned subjects (from database)</p>
+              <p style={{ fontSize: 12, color: "var(--muted)" }}>Your assigned subjects from database</p>
             </div>
           </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {checking ? (
               <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>Loading subjects…</p>
-            ) : subjects.length > 0 ? subjects.map((s) => {
-              const subjectId = resolveSubjectId(s);
-              const subjectLabel = resolveSubjectLabel(s);
-              return (
-                <div key={subjectId} onClick={() => !session && setSelected(subjectId)}
-                  style={{
-                    background: selected === subjectId ? "rgba(99,102,241,0.1)" : "var(--surface2)",
-                    border: selected === subjectId ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--border)",
-                    borderRadius: 10, padding: "12px 16px", cursor: session ? "default" : "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "space-between", transition: "all 0.15s"
-                  }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 600, color: selected === subjectId ? "#818cf8" : "var(--text)" }}>{subjectLabel}</span>
-                  {selected === subjectId && <CheckCircle size={16} color="#818cf8" />}
-                </div>
-              );
-            }) : (
-              <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>No subjects assigned. Contact admin.</p>
+            ) : subjects.length > 0 ? (
+              subjects.map((s) => {
+                const subjectId = resolveSubjectId(s);
+                const subjectLabel = resolveSubjectLabel(s);
+                const isSelected = selected === subjectId;
+
+                return (
+                  <div
+                    key={subjectId}
+                    onClick={() => !session && setSelected(subjectId)}
+                    style={{
+                      background: isSelected ? "rgba(99,102,241,0.1)" : "var(--surface2)",
+                      border: isSelected ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--border)",
+                      borderRadius: 10,
+                      padding: "12px 16px",
+                      cursor: session ? "default" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "all 0.15s ease",
+                      opacity: session ? 0.6 : 1,
+                    }}
+                  >
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: isSelected ? "#818cf8" : "var(--text)" }}>
+                      {subjectLabel}
+                    </span>
+                    {isSelected && <CheckCircle size={16} color="#818cf8" />}
+                  </div>
+                );
+              })
+            ) : (
+              <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>
+                No subjects assigned. Please contact your administrator.
+              </p>
             )}
           </div>
         </div>
 
-        {/* Session control */}
+        {/* Right Column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Academic Year Selector */}
           <div className="card" style={{ padding: 24 }}>
@@ -178,189 +226,235 @@ export default function StartSession() {
                 <BookOpen size={18} color="#a855f7" />
               </div>
               <div>
-                <p style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Select Academic Year</p>
-                <p style={{ fontSize: 12, color: "var(--muted)" }}>Years you can manage</p>
+                <p style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Academic Year</p>
+                <p style={{ fontSize: 12, color: "var(--muted)" }}>Select the academic year</p>
               </div>
             </div>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {user?.assignedYears && user.assignedYears.length > 0 ? user.assignedYears.map((year) => (
-                <div key={year} onClick={() => !session && setSelectedYear(year)}
-                  style={{
-                    background: selectedYear === year ? "rgba(168,85,247,0.1)" : "var(--surface2)",
-                    border: selectedYear === year ? "1px solid rgba(168,85,247,0.4)" : "1px solid var(--border)",
-                    borderRadius: 10, padding: "12px 16px", cursor: session ? "default" : "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "space-between", transition: "all 0.15s"
-                  }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 600, color: selectedYear === year ? "#a855f7" : "var(--text)" }}>{year}</span>
-                  {selectedYear === year && <CheckCircle size={16} color="#a855f7" />}
-                </div>
-              )) : (
-                <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>No academic years assigned. Contact admin.</p>
+              {user?.assignedYears && user.assignedYears.length > 0 ? (
+                user.assignedYears.map((year) => {
+                  const isSelected = selectedYear === year;
+                  return (
+                    <div
+                      key={year}
+                      onClick={() => !session && setSelectedYear(year)}
+                      style={{
+                        background: isSelected ? "rgba(168,85,247,0.1)" : "var(--surface2)",
+                        border: isSelected ? "1px solid rgba(168,85,247,0.4)" : "1px solid var(--border)",
+                        borderRadius: 10,
+                        padding: "12px 16px",
+                        cursor: session ? "default" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease",
+                        opacity: session ? 0.6 : 1,
+                      }}
+                    >
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: isSelected ? "#a855f7" : "var(--text)" }}>
+                        {year}
+                      </span>
+                      {isSelected && <CheckCircle size={16} color="#a855f7" />}
+                    </div>
+                  );
+                })
+              ) : (
+                <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>
+                  No academic years assigned. Please contact your administrator.
+                </p>
               )}
             </div>
           </div>
 
+          {/* Department Selector */}
           <div className="card" style={{ padding: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 9, background: "rgba(96,165,250,0.12)", display: "grid", placeItems: "center" }}>
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: "rgba(59,130,246,0.12)", display: "grid", placeItems: "center" }}>
                 <MapPin size={18} color="#3b82f6" />
               </div>
               <div>
-                <p style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Select Department</p>
+                <p style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Department</p>
                 <p style={{ fontSize: 12, color: "var(--muted)" }}>Choose the department for this session</p>
               </div>
             </div>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {departments.length > 0 ? departments.map((dept) => (
-                <div key={dept._id} onClick={() => !session && setSelectedDepartment(dept._id)}
-                  style={{
-                    background: selectedDepartment === dept._id ? "rgba(59,130,246,0.1)" : "var(--surface2)",
-                    border: selectedDepartment === dept._id ? "1px solid rgba(59,130,246,0.4)" : "1px solid var(--border)",
-                    borderRadius: 10, padding: "12px 16px", cursor: session ? "default" : "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "space-between", transition: "all 0.15s"
-                  }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 600, color: selectedDepartment === dept._id ? "#3b82f6" : "var(--text)" }}>{dept.code ? `${dept.code} — ${dept.name}` : dept.name}</span>
-                  {selectedDepartment === dept._id && <CheckCircle size={16} color="#3b82f6" />}
-                </div>
-              )) : (
-                <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>Loading departments…</p>
+              {departments.length > 0 ? (
+                departments.map((dept) => {
+                  const isSelected = selectedDepartment === dept._id;
+                  return (
+                    <div
+                      key={dept._id}
+                      onClick={() => !session && setSelectedDepartment(dept._id)}
+                      style={{
+                        background: isSelected ? "rgba(59,130,246,0.1)" : "var(--surface2)",
+                        border: isSelected ? "1px solid rgba(59,130,246,0.4)" : "1px solid var(--border)",
+                        borderRadius: 10,
+                        padding: "12px 16px",
+                        cursor: session ? "default" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "all 0.15s ease",
+                        opacity: session ? 0.6 : 1,
+                      }}
+                    >
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: isSelected ? "#3b82f6" : "var(--text)" }}>
+                        {dept.code ? `${dept.code} — ${dept.name}` : dept.name}
+                      </span>
+                      {isSelected && <CheckCircle size={16} color="#3b82f6" />}
+                    </div>
+                  );
+                })
+              ) : (
+                <p style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>
+                  Loading departments…
+                </p>
               )}
             </div>
           </div>
 
-          {/* Action card */}
+          {/* Session Control */}
           <div className="card" style={{ padding: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
               <div style={{ width: 38, height: 38, borderRadius: 9, background: "rgba(16,185,129,0.1)", display: "grid", placeItems: "center" }}>
-                <MapPin size={18} color="#10b981" />
+                <PlayCircle size={18} color="#10b981" />
               </div>
               <div>
                 <p style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Session Control</p>
-                <p style={{ fontSize: 12, color: "var(--muted)" }}>GPS auto-captured on start</p>
+                <p style={{ fontSize: 12, color: "var(--muted)" }}>
+                  {session ? "Session is currently active" : "GPS captured automatically on start"}
+                </p>
               </div>
             </div>
 
             {!session ? (
               <>
-                <button className="btn btn-primary w-full" style={{ justifyContent: "center", padding: "12px" }} disabled={loading || !selected || !selectedYear || !selectedDepartment} onClick={handleStart}>
-                  {loading ? <><Loader2 size={15} className="animate-spin" /> Starting…</> : <><PlayCircle size={16} /> Start Session</>}
+                <button
+                  className="btn btn-primary w-full"
+                  style={{ justifyContent: "center", padding: "12px 16px" }}
+                  disabled={loading || !selected || !selectedYear || !selectedDepartment}
+                  onClick={handleStart}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" style={{ marginRight: 8 }} />
+                      Starting…
+                    </>
+                  ) : (
+                    <>
+                      <PlayCircle size={16} style={{ marginRight: 8 }} />
+                      Start Session
+                    </>
+                  )}
                 </button>
+
                 {loading && (
                   <p style={{ fontSize: 11.5, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
-                    {gpsAccuracy != null
+                    {gpsAccuracy !== null
                       ? `Locking classroom location — accuracy: ${Math.round(gpsAccuracy)}m`
                       : "Searching for GPS signal…"}
                   </p>
                 )}
+
+                {!loading && (selected && selectedYear && selectedDepartment) && (
+                  <p style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
+                    ✓ Ready to start session
+                  </p>
+                )}
               </>
             ) : (
-              <button className="btn btn-danger w-full" style={{ justifyContent: "center", padding: "12px" }} disabled={loading} onClick={handleStop}>
-                {loading ? <><Loader2 size={15} className="animate-spin" /> Stopping…</> : <><StopCircle size={16} /> Stop Session</>}
-              </button>
+              <>
+                <button
+                  className="btn btn-danger w-full"
+                  style={{ justifyContent: "center", padding: "12px 16px" }}
+                  disabled={loading}
+                  onClick={handleStop}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" style={{ marginRight: 8 }} />
+                      Stopping…
+                    </>
+                  ) : (
+                    <>
+                      <StopCircle size={16} style={{ marginRight: 8 }} />
+                      Stop Session
+                    </>
+                  )}
+                </button>
+              </>
             )}
           </div>
 
-          {/* Active session info */}
-          {session && (
-            <div className="animate-fade-in" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 14, padding: 20 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                <span className="dot-live" />
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>Session Active</span>
-              </div>
-              {[
-                { label: "Academic Year", val: session.academicYear },
-                { label: "Subject",       val: resolveSubjectLabel(session.subject) },
-                { label: "Department",    val: departments.find((d) => String(d._id) === String(session.department?._id || session.department))?.code || (typeof session.department === "object" ? (session.department?.code || session.department?.name) : session.department) || "—" },
-                { label: "Session ID",    val: session._id },
-                { label: "Expires",       val: new Date(session.expiresAt).toLocaleTimeString() },
-              ].map(({ label, val }) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <span style={{ color: "var(--muted)" }}>{label}</span>
-                  <span style={{ color: "var(--text)", fontWeight: 600, fontFamily: label === "Session ID" ? "monospace" : "inherit", fontSize: label === "Session ID" ? 11 : 12.5 }}>{val}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+          {/* Active Session Information */}
           {session && (
             <div
-              className="animate-fade-in"
+              className="card"
               style={{
-                background: "rgba(16,185,129,0.07)",
-                border: "1px solid rgba(16,185,129,0.25)",
-                borderRadius: 14,
-                padding: 20,
+                padding: 24,
+                background: "rgba(16,185,129,0.05)",
+                border: "1px solid rgba(16,185,129,0.2)",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 14,
-                }}
-              >
-                <span className="dot-live" />
-                <span
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <div
                   style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "#34d399",
+                    width: 38,
+                    height: 38,
+                    borderRadius: 9,
+                    background: "rgba(16,185,129,0.15)",
+                    display: "grid",
+                    placeItems: "center",
                   }}
                 >
-                  Session Active
-                </span>
+                  <CheckCircle size={18} color="#10b981" />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Active Session Details</p>
+                  <p style={{ fontSize: 12, color: "var(--muted)" }}>
+                    Started at {session.createdAt ? new Date(session.createdAt).toLocaleTimeString() : "N/A"}
+                  </p>
+                </div>
               </div>
 
-              {[
-                { label: "Academic Year", val: session.academicYear },
-                { label: "Subject", val: resolveSubjectLabel(session.subject) },
-                {
-                  label: "Department",
-                  val:
-                    departments.find(
-                      (d) =>
-                        String(d._id) ===
-                        String(session.department?._id || session.department)
-                    )?.code ||
-                    (typeof session.department === "object"
-                      ? session.department?.code || session.department?.name
-                      : session.department) ||
-                    "—",
-                },
-                { label: "Session ID", val: session._id },
-                {
-                  label: "Expires",
-                  val: new Date(session.expiresAt).toLocaleTimeString(),
-                },
-              ].map(({ label, val }) => (
-                <div
-                  key={label}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: 12.5,
-                    padding: "6px 0",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <span style={{ color: "var(--muted)" }}>{label}</span>
-                  <span
-                    style={{
-                      color: "var(--text)",
-                      fontWeight: 600,
-                      fontFamily:
-                        label === "Session ID" ? "monospace" : "inherit",
-                      fontSize: label === "Session ID" ? 11 : 12.5,
-                    }}
-                  >
-                    {val}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>Subject</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                    {session.subject?.name || session.subject || "N/A"}
                   </span>
                 </div>
-              ))}
+
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>Academic Year</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                    {session.academicYear || "N/A"}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>Department</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                    {session.department?.name || session.department || "N/A"}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>📍 Location</span>
+                  <span style={{ fontSize: 12, color: "var(--text)" }}>
+                    {session.lat?.toFixed(6)}, {session.lng?.toFixed(6)}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0" }}>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>Students Marked</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#10b981" }}>
+                    {session.attendanceCount || 0}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
         </div>
